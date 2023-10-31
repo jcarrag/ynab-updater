@@ -104,7 +104,7 @@ where
     }
     #[derive(Clone, Debug, Serialize, Deserialize)]
     struct CreateTransaction {
-        date: String,
+        date: NaiveDate,
         amount: i32,
         payee_id: String,
         #[serde(flatten)]
@@ -130,20 +130,24 @@ where
         .to_owned();
 
     let real_balance_milli = { real_balance * 1000.0 } as i32;
-    let balance_adjusment = real_balance_milli - balance;
+    let balance_adjustment = real_balance_milli - balance;
+
+    let now = Local::now().date_naive();
 
     if balance == real_balance_milli {
         info!("Real & YNAB balances are equal");
         Ok(())
     } else if last_transaction.transaction.payee_id
         == ynab_account_config.ynab_reconciliation_payee_id
+        // preserve the adjustment transaction on the 1st to create a record of the account's value over time
+        && last_transaction.transaction.date.day() != 1
     {
         info!("Real & YNAB balances are not equal and the last transaction was a reconciliation");
         let body = TransactionWrapper {
             transaction: Transaction {
                 transaction: CreateTransaction {
-                    amount: last_transaction.transaction.amount + balance_adjusment,
-                    date: Local::now().format("%Y-%m-%d").to_string(),
+                    amount: last_transaction.transaction.amount + balance_adjustment,
+                    date: now,
                     ..last_transaction.transaction.clone()
                 },
                 ..last_transaction.clone()
@@ -162,12 +166,12 @@ where
         Ok(())
     } else {
         info!(
-            "Real & YNAB balances are not equal and the last transaction was not a reconciliation"
+            "Real & YNAB balances are not equal and the last transaction was not a reconciliation or it's the 1st"
         );
         let body = TransactionWrapper {
             transaction: CreateTransaction {
-                amount: balance_adjusment,
-                date: Local::now().format("%Y-%m-%d").to_string(),
+                amount: balance_adjustment,
+                date: now,
                 payee_id: ynab_account_config.ynab_reconciliation_payee_id,
                 other: json!({
                     "account_id": ynab_account_config.ynab_account_id,
