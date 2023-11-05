@@ -42,12 +42,14 @@
       packages.${system} = {
         hl = writeScriptBin "hl" ''
           RUST_LOG=info \
+          RUST_BACKTRACE=1 \
           CONFIG_PATH=/home/james/dev/my/ynab_updater/settings.toml \
           ${ynab-updater}/bin/hl
         '';
         saxo =
           writeScriptBin "saxo" ''
             RUST_LOG=info \
+            RUST_BACKTRACE=1 \
             CONFIG_PATH=/home/james/dev/my/ynab_updater/settings.toml \
             ${ynab-updater}/bin/saxo
           '';

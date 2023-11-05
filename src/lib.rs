@@ -1,5 +1,6 @@
 #![feature(async_fn_in_trait)]
 
+use anyhow::Result;
 use chrono::prelude::*;
 use log::info;
 use pushover::requests::message::SendMessage;
@@ -7,7 +8,6 @@ use reqwest::header;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::env;
-use std::error::Error;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -26,14 +26,14 @@ pub struct YnabAccountConfig {
 }
 
 pub trait GetYnabAccountConfig {
-    async fn get(&self) -> Result<YnabAccountConfig, Box<dyn Error>>;
+    async fn get(&self) -> Result<YnabAccountConfig>;
 }
 
 pub trait GetBalance {
-    async fn get(&self) -> Result<f32, Box<dyn Error>>;
+    async fn get(&self) -> Result<f32>;
 }
 
-async fn _update_ynab<T>(config: &Config, t: T) -> Result<(), Box<dyn Error>>
+async fn _update_ynab<T>(config: &Config, t: T) -> Result<()>
 where
     T: GetBalance + GetYnabAccountConfig,
 {
@@ -126,7 +126,7 @@ where
         .data
         .transactions
         .last()
-        .ok_or("Failed to get last transaction; vec was empty")?
+        .unwrap()
         .to_owned();
 
     let real_balance_milli = { real_balance * 1000.0 } as i32;
@@ -197,7 +197,7 @@ where
     }
 }
 
-pub async fn update_ynab<T>(t: T) -> Result<(), Box<dyn Error>>
+pub async fn update_ynab<T>(t: T) -> Result<()>
 where
     T: GetBalance + GetYnabAccountConfig,
 {
@@ -217,7 +217,7 @@ where
                 config.pushover_user_key,
                 format!("Failed to update YNAB: {:#?}", e.to_string()),
             );
-            api.send(&msg)?;
+            api.send(&msg).unwrap();
             Err(e)
         }
     }

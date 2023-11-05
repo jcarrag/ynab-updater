@@ -1,10 +1,10 @@
 #![feature(async_fn_in_trait, iterator_try_collect)]
 
+use anyhow::Result;
 use regex::Regex;
 use scraper::{Html, Selector};
 use serde::Deserialize;
 use std::env;
-use std::error::Error;
 use ynab_updater::{update_ynab, GetBalance, GetYnabAccountConfig, YnabAccountConfig};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -23,25 +23,25 @@ struct Mock {}
 struct HL {}
 
 impl GetYnabAccountConfig for Mock {
-    async fn get(&self) -> Result<YnabAccountConfig, Box<dyn Error>> {
+    async fn get(&self) -> Result<YnabAccountConfig> {
         get_hl_ynab_account_config()
     }
 }
 
 impl GetBalance for Mock {
-    async fn get(&self) -> Result<f32, Box<dyn Error>> {
+    async fn get(&self) -> Result<f32> {
         Ok(0.0)
     }
 }
 
 impl GetYnabAccountConfig for HL {
-    async fn get(&self) -> Result<YnabAccountConfig, Box<dyn Error>> {
+    async fn get(&self) -> Result<YnabAccountConfig> {
         get_hl_ynab_account_config()
     }
 }
 
 impl GetBalance for HL {
-    async fn get(&self) -> Result<f32, Box<dyn Error>> {
+    async fn get(&self) -> Result<f32> {
         let config_path = env::var("CONFIG_PATH")?;
 
         let config = config::Config::builder()
@@ -66,7 +66,7 @@ impl GetBalance for HL {
     }
 }
 
-fn get_hl_ynab_account_config() -> Result<YnabAccountConfig, Box<dyn Error>> {
+fn get_hl_ynab_account_config() -> Result<YnabAccountConfig> {
     let config_path = env::var("CONFIG_PATH")?;
 
     let config = config::Config::builder()
@@ -81,7 +81,7 @@ fn get_hl_ynab_account_config() -> Result<YnabAccountConfig, Box<dyn Error>> {
     Ok(yac)
 }
 
-async fn get_hl_vt(client: &reqwest::Client) -> Result<String, Box<dyn Error>> {
+async fn get_hl_vt(client: &reqwest::Client) -> Result<String> {
     let resp = client
         .get("https://online.hl.co.uk/my-accounts/login-step-one")
         .send()
@@ -89,14 +89,16 @@ async fn get_hl_vt(client: &reqwest::Client) -> Result<String, Box<dyn Error>> {
     let text = resp.text().await?;
     let document = Html::parse_fragment(&text);
     let selector_string = r#"input[name="hl_vt"]"#;
-    let selector = Selector::parse(selector_string)?;
+    let selector = Selector::parse(selector_string).unwrap();
     let hl_vt = document
         .select(&selector)
         .next()
-        .ok_or(format!("Failed to match selector: {}", selector_string))?
+        .ok_or(format!("Failed to match selector: {}", selector_string))
+        .unwrap()
         .value()
         .attr("value")
-        .ok_or("Failed to get 'value' from selected node")?
+        .ok_or("Failed to get 'value' from selected node")
+        .unwrap()
         .to_owned();
 
     Ok(hl_vt)
@@ -120,7 +122,7 @@ async fn login_step_one(
     Ok(())
 }
 
-async fn login_step_two(client: &reqwest::Client) -> Result<Vec<usize>, Box<dyn Error>> {
+async fn login_step_two(client: &reqwest::Client) -> Result<Vec<usize>> {
     let resp = client
         .get("https://online.hl.co.uk/my-accounts/login-step-two")
         .send()
@@ -131,25 +133,30 @@ async fn login_step_two(client: &reqwest::Client) -> Result<Vec<usize>, Box<dyn 
     let regex = Regex::new(r"Enter the (\d)\w{2} digit from your Secure Number")?;
 
     let titles = (1..=3)
-        .map(|i| -> Result<usize, Box<dyn Error>> {
+        .map(|i| -> Result<usize> {
             let selector_string = format!(r#"input[id="secure-number-{}"]"#, i);
             let selector = Selector::parse(&selector_string)
-                .map_err(|_| format!("Failed to parse selector: {:#?}", selector_string))?;
+                .map_err(|_| format!("Failed to parse selector: {:#?}", selector_string))
+                .unwrap();
             let title = document
                 .clone()
                 .select(&selector)
                 .next()
-                .ok_or(format!("Failed to match selector: {}", selector_string))?
+                .ok_or(format!("Failed to match selector: {}", selector_string))
+                .unwrap()
                 .value()
                 .attr("title")
-                .ok_or("Failed to get 'title' from selected node")?
+                .ok_or("Failed to get 'title' from selected node")
+                .unwrap()
                 .to_owned();
 
             let digit_match = regex
                 .captures(title.as_str())
-                .ok_or("")?
+                .ok_or("")
+                .unwrap()
                 .get(1)
-                .ok_or("")?
+                .ok_or("")
+                .unwrap()
                 .as_str();
             Ok(digit_match.parse::<usize>()? - 1)
         })
@@ -193,29 +200,33 @@ async fn submit_secure_number(
     Ok(text)
 }
 
-async fn get_total(home_page: String) -> Result<f32, Box<dyn Error>> {
+async fn get_total(home_page: String) -> Result<f32> {
     let document = Html::parse_fragment(&home_page);
 
     let total = (2..=3).map(|i| {
         let selector_string = format!(r#"#content-body-full > div > div.main-content > table > tfoot > tr > td:nth-child({})"#, i);
-        let selector = Selector::parse(&selector_string).map_err(|_| format!("Failed to parse selector: {:#?}", selector_string))?;
+        let selector = Selector::parse(&selector_string).map_err(|_| format!("Failed to parse selector: {:#?}", selector_string)).unwrap();
 
         let totals = document
             .select(&selector)
             .next()
-            .ok_or(format!("Failed to match selector: {}", selector_string))?
+            .ok_or(format!("Failed to match selector: {}", selector_string))
+            .unwrap()
             .text()
             .next()
-            .ok_or("Failed to get 'text' from selected node")?
+            .ok_or("Failed to get 'text' from selected node")
+            .unwrap()
             .to_owned();
 
         let regex = Regex::new(r"\W*(\d*\,?\d*\.?\d{2}?)")?;
 
         let captures = regex
             .captures(&totals)
-            .ok_or("Failed to get captures from regex")?
+            .ok_or("Failed to get captures from regex")
+            .unwrap()
             .get(1)
-            .ok_or("Failed to get match from regex")?
+            .ok_or("Failed to get match from regex")
+            .unwrap()
             .as_str()
             .replace(",", "");
 
@@ -226,7 +237,7 @@ async fn get_total(home_page: String) -> Result<f32, Box<dyn Error>> {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     env_logger::init();
 
     let _hl = HL {};
