@@ -16,8 +16,6 @@ pub struct Config {
     pub hl_secure_numbers: [String; 6],
 
     pub ynab_hl_account_id: String,
-    // TODO is this the same for all accounts?
-    pub ynab_hl_reconciliation_payee_id: String,
 }
 
 struct Mock {}
@@ -78,7 +76,6 @@ fn get_hl_ynab_account_config() -> Result<YnabAccountConfig, Box<dyn Error>> {
 
     let yac = YnabAccountConfig {
         ynab_account_id: config.ynab_hl_account_id,
-        ynab_reconciliation_payee_id: config.ynab_hl_reconciliation_payee_id,
     };
 
     Ok(yac)

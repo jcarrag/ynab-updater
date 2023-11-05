@@ -17,12 +17,12 @@ pub struct Config {
 
     pub ynab_bearer_token: String,
     pub ynab_budget_id: String,
+    pub ynab_reconciliation_payee_id: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct YnabAccountConfig {
     pub ynab_account_id: String,
-    pub ynab_reconciliation_payee_id: String,
 }
 
 pub trait GetYnabAccountConfig {
@@ -138,7 +138,7 @@ where
         info!("Real & YNAB balances are equal");
         Ok(())
     } else if last_transaction.transaction.payee_id
-        == ynab_account_config.ynab_reconciliation_payee_id
+        == config.ynab_reconciliation_payee_id
         // preserve the adjustment transaction on the 1st to create a record of the account's value over time
         && last_transaction.transaction.date.day() != 1
     {
@@ -172,7 +172,7 @@ where
             transaction: CreateTransaction {
                 amount: balance_adjustment,
                 date: now,
-                payee_id: ynab_account_config.ynab_reconciliation_payee_id,
+                payee_id: config.ynab_reconciliation_payee_id.clone(),
                 other: json!({
                     "account_id": ynab_account_config.ynab_account_id,
                     "approved": true,
