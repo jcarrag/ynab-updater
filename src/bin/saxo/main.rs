@@ -10,8 +10,8 @@ use std::io::{Read, Write};
 use std::{env, net::TcpListener};
 use ynab_updater::{update_ynab, GetBalance, GetYnabAccountConfig, YnabAccountConfig};
 
-static SAXO_AUTH_URL: &str = "https://sim.logonvalidation.net/authorize";
-static SAXO_ACCESS_URL: &str = "https://sim.logonvalidation.net/token";
+static SAXO_AUTH_URL: &str = "https://live.logonvalidation.net/authorize";
+static SAXO_ACCESS_URL: &str = "https://live.logonvalidation.net/token";
 static SAXO_API_URL: &str = "https://gateway.saxobank.com/sim/openapi/";
 
 // TODO: pass in via tailscale ip command?
