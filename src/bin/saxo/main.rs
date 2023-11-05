@@ -12,7 +12,7 @@ use ynab_updater::{update_ynab, GetBalance, GetYnabAccountConfig, YnabAccountCon
 
 static SAXO_AUTH_URL: &str = "https://live.logonvalidation.net/authorize";
 static SAXO_ACCESS_URL: &str = "https://live.logonvalidation.net/token";
-static SAXO_API_URL: &str = "https://gateway.saxobank.com/sim/openapi/";
+static SAXO_API_URL: &str = "https://gateway.saxobank.com/openapi/";
 
 // TODO: pass in via tailscale ip command?
 static TAILSCALE_IP: &str = "100.84.252.9";

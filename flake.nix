@@ -103,9 +103,9 @@
               wantedBy = [ "timers.target" ];
               timerConfig = {
                 OnBootSec = "10s";
-                # 23h since the refresh_token duration is 24h
+                # 55m since the refresh_token duration is 1h
                 # - so we want to refresh it before it expires
-                OnUnitActiveSec = "23h";
+                OnUnitActiveSec = "55m";
                 Unit = "ynab-updater-saxo.service";
               };
             };
