@@ -8,19 +8,27 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::{env, net::TcpListener};
-use ynab_updater::{update_ynab, GetBalance, GetYnabAccountConfig, YnabAccountConfig};
+use ynab_updater::{
+    update_ynab, GetBalance, GetYnabAccountConfig, YnabAccountConfig, CONFIG_FILENAME,
+};
 
 static SAXO_AUTH_URL: &str = "https://live.logonvalidation.net/authorize";
 static SAXO_ACCESS_URL: &str = "https://live.logonvalidation.net/token";
 static SAXO_API_URL: &str = "https://gateway.saxobank.com/openapi/";
 
+static ACCESS_TOKEN_FILENAME: &str = "access_token.json";
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub struct Config {
+    #[serde(rename = "config_path")]
+    pub config_path: String,
+    #[serde(rename = "tailscale_ip")]
+    pub tailscale_ip: String,
+
     pub saxo_client_id: String,
     pub saxo_client_secret: String,
     pub saxo_redirect_uri: String,
-    pub saxo_access_token_path: String,
 
     pub ynab_saxo_account_id: String,
 
@@ -66,11 +74,11 @@ struct AccountResponse {
 
 impl GetBalance for Saxo {
     async fn get(&self) -> Result<f32> {
-        let tailscale_ip = env::var("TAILSCALE_IP")?;
-        let config_path = env::var("CONFIG_PATH")?;
+        let config_path = format!("{}/{}", env::var("YNAB_CONFIG_PATH")?, CONFIG_FILENAME);
 
         let config = config::Config::builder()
             .add_source(config::File::with_name(&config_path))
+            .add_source(config::Environment::with_prefix("YNAB"))
             .build()?
             .try_deserialize::<Config>()?;
 
@@ -80,8 +88,7 @@ impl GetBalance for Saxo {
 
         let api = pushover::API::new();
 
-        let refreshed_access_token =
-            get_refreshed_access_token(&config, &client, &api, tailscale_ip).await?;
+        let refreshed_access_token = get_refreshed_access_token(&config, &client, &api).await?;
 
         let account_response = get_account_value(&client, &refreshed_access_token).await?;
 
@@ -93,33 +100,36 @@ async fn get_refreshed_access_token(
     config: &Config,
     client: &reqwest::Client,
     api: &pushover::API,
-    tailscale_ip: String,
 ) -> Result<AccessTokenResponse> {
-    let access_token =
-        get_cached_or_live_access_token(&config, &client, &api, tailscale_ip).await?;
+    let access_token = get_cached_or_live_access_token(&config, &client, &api).await?;
 
     let refreshed_access_token = refresh_access_token(&config, &client, &access_token).await?;
 
     std::fs::write(
-        config.saxo_access_token_path.clone(),
+        get_access_token_path(&config),
         serde_json::to_string(&refreshed_access_token)?,
     )?;
 
     Ok(refreshed_access_token)
 }
 
+fn get_access_token_path(config: &Config) -> String {
+    format!("{}/{}", config.config_path, ACCESS_TOKEN_FILENAME)
+}
+
 async fn get_cached_or_live_access_token(
     config: &Config,
     client: &reqwest::Client,
     api: &pushover::API,
-    tailscale_ip: String,
 ) -> Result<AccessTokenResponse> {
-    let valid_refresh_token_o = std::fs::metadata(config.saxo_access_token_path.clone())
+    let access_token_path = get_access_token_path(&config);
+
+    let valid_refresh_token_o = std::fs::metadata(access_token_path.clone())
         .ok()
         .and_then(|stat| stat.modified().ok())
         .and_then(|modified| {
-            let access_token_file = std::fs::read(config.saxo_access_token_path.clone())
-                .expect(format!("Unable to read {}", config.saxo_access_token_path).as_str());
+            let access_token_file = std::fs::read(access_token_path.clone())
+                .expect(format!("Unable to read {}", access_token_path).as_str());
 
             let access_token = serde_json::from_slice::<AccessTokenResponse>(&access_token_file)
                 .expect("Unable to parse access_token_file");
@@ -150,14 +160,11 @@ async fn get_cached_or_live_access_token(
 
             send_login_uri_push_notification(&config, &api, login_uri)?;
 
-            let auth_code = block_until_auth_code(tailscale_ip)?;
+            let auth_code = block_until_auth_code(&config)?;
 
             let access_token = get_access_token(&config, &client, auth_code).await?;
 
-            std::fs::write(
-                config.saxo_access_token_path.clone(),
-                serde_json::to_string(&access_token)?,
-            )?;
+            std::fs::write(access_token_path, serde_json::to_string(&access_token)?)?;
 
             Ok(access_token)
         }
@@ -165,10 +172,11 @@ async fn get_cached_or_live_access_token(
 }
 
 fn get_saxo_ynab_account_config() -> Result<YnabAccountConfig> {
-    let config_path = env::var("CONFIG_PATH")?;
+    let config_path = format!("{}/{}", env::var("YNAB_CONFIG_PATH")?, CONFIG_FILENAME);
 
     let config = config::Config::builder()
         .add_source(config::File::with_name(&config_path))
+        .add_source(config::Environment::with_prefix("YNAB"))
         .build()?
         .try_deserialize::<Config>()?;
 
@@ -200,10 +208,10 @@ async fn get_login_uri(config: &Config, client: &reqwest::Client) -> Result<Stri
     Ok(location)
 }
 
-fn block_until_auth_code(tailscale_ip: String) -> Result<String> {
+fn block_until_auth_code(config: &Config) -> Result<String> {
     info!("Waiting for auth code redirect");
 
-    let listener = TcpListener::bind(format!("{}:9999", tailscale_ip))?;
+    let listener = TcpListener::bind(format!("{}:9999", config.tailscale_ip))?;
 
     let (mut stream, _) = listener.accept()?;
     let mut buffer = [0; 512];

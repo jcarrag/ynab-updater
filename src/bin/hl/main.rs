@@ -5,7 +5,9 @@ use regex::Regex;
 use scraper::{Html, Selector};
 use serde::Deserialize;
 use std::env;
-use ynab_updater::{update_ynab, GetBalance, GetYnabAccountConfig, YnabAccountConfig};
+use ynab_updater::{
+    update_ynab, GetBalance, GetYnabAccountConfig, YnabAccountConfig, CONFIG_FILENAME,
+};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -42,7 +44,7 @@ impl GetYnabAccountConfig for HL {
 
 impl GetBalance for HL {
     async fn get(&self) -> Result<f32> {
-        let config_path = env::var("CONFIG_PATH")?;
+        let config_path = format!("{}/{}", env::var("YNAB_CONFIG_PATH")?, CONFIG_FILENAME);
 
         let config = config::Config::builder()
             .add_source(config::File::with_name(&config_path))
@@ -67,7 +69,7 @@ impl GetBalance for HL {
 }
 
 fn get_hl_ynab_account_config() -> Result<YnabAccountConfig> {
-    let config_path = env::var("CONFIG_PATH")?;
+    let config_path = format!("{}/{}", env::var("YNAB_CONFIG_PATH")?, CONFIG_FILENAME);
 
     let config = config::Config::builder()
         .add_source(config::File::with_name(&config_path))

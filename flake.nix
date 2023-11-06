@@ -43,14 +43,14 @@
         hl = writeShellScriptBin "hl" ''
           RUST_LOG=info \
           RUST_BACKTRACE=1 \
-          CONFIG_PATH=''${CONFIG_PATH:-/home/james/dev/my/ynab_updater/settings.toml} \
+          YNAB_CONFIG_PATH=''${YNAB_CONFIG_PATH:-/home/james/dev/my/ynab_updater} \
           ${ynab-updater}/bin/hl
         '';
         saxo = writeShellScriptBin "saxo" ''
           RUST_LOG=info \
           RUST_BACKTRACE=1 \
-          TAILSCALE_IP=$(${pkgs.tailscale}/bin/tailscale ip --4) \
-          CONFIG_PATH=''${CONFIG_PATH:-/home/james/dev/my/ynab_updater/settings.toml} \
+          YNAB_TAILSCALE_IP=$(${pkgs.tailscale}/bin/tailscale ip --4) \
+          YNAB_CONFIG_PATH=''${YNAB_CONFIG_PATH:-/home/james/dev/my/ynab_updater} \
           ${ynab-updater}/bin/saxo
         '';
       };
@@ -75,7 +75,7 @@
             enable = mkEnableOption "Enable the YNAB updater service.";
             configDir = mkOption {
               type = types.str;
-              description = lib.mdDoc "The path of the config file.";
+              description = lib.mdDoc "The directory of the config file & cache.";
             };
           };
 
@@ -91,7 +91,7 @@
             systemd.user.services."ynab-updater-hl" = {
               environment = {
                 RUST_LOG = "info";
-                CONFIG_PATH = cfg.configDir;
+                YNAB_CONFIG_PATH = cfg.configDir;
               };
               serviceConfig = {
                 Type = "oneshot";
@@ -112,7 +112,7 @@
             systemd.user.services."ynab-updater-saxo" = {
               environment = {
                 RUST_LOG = "info";
-                CONFIG_PATH = cfg.configDir;
+                YNAB_CONFIG_PATH = cfg.configDir;
               };
               serviceConfig = {
                 Type = "oneshot";

@@ -9,9 +9,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::env;
 
+pub static CONFIG_FILENAME: &str = "settings.toml";
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub struct Config {
+    #[serde(rename = "config_path")]
+    pub config_path: String,
+
     pub pushover_user_key: String,
     pub pushover_api_key: String,
 
@@ -201,10 +206,11 @@ pub async fn update_ynab<T>(t: T) -> Result<()>
 where
     T: GetBalance + GetYnabAccountConfig,
 {
-    let config_path = env::var("CONFIG_PATH")?;
+    let config_path = format!("{}/{}", env::var("YNAB_CONFIG_PATH")?, CONFIG_FILENAME);
 
     let config = config::Config::builder()
         .add_source(config::File::with_name(&config_path))
+        .add_source(config::Environment::with_prefix("YNAB"))
         .build()?
         .try_deserialize::<Config>()?;
 
