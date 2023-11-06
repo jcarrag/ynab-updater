@@ -40,17 +40,17 @@
     in
     with pkgs; {
       packages.${system} = {
-        hl = writeScriptBin "hl" ''
+        hl = writeShellScriptBin "hl" ''
           RUST_LOG=info \
           RUST_BACKTRACE=1 \
-          CONFIG_PATH="''${CONFIG_PATH:/home/james/dev/my/ynab_updater/settings.toml}" \
+          CONFIG_PATH=''${CONFIG_PATH:"/home/james/dev/my/ynab_updater/settings.toml"} \
           ${ynab-updater}/bin/hl
         '';
-        saxo = writeScriptBin "saxo" ''
+        saxo = writeShellScriptBin "saxo" ''
           RUST_LOG=info \
           RUST_BACKTRACE=1 \
           TAILSCALE_IP=$(${pkgs.tailscale}/bin/tailscale ip --4) \
-          CONFIG_PATH="''${CONFIG_PATH:/home/james/dev/my/ynab_updater/settings.toml}" \
+          CONFIG_PATH=''${CONFIG_PATH:"/home/james/dev/my/ynab_updater/settings.toml"} \
           ${ynab-updater}/bin/saxo
         '';
       };
