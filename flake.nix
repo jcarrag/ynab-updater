@@ -50,6 +50,7 @@
           writeScriptBin "saxo" ''
             RUST_LOG=info \
             RUST_BACKTRACE=1 \
+            TAILSCALE_IP=$(${pkgs.tailscale}/bin/tailscale ip --4) \
             CONFIG_PATH=/home/james/dev/my/ynab_updater/settings.toml \
             ${ynab-updater}/bin/saxo
           '';

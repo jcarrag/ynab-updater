@@ -14,15 +14,11 @@ static SAXO_AUTH_URL: &str = "https://live.logonvalidation.net/authorize";
 static SAXO_ACCESS_URL: &str = "https://live.logonvalidation.net/token";
 static SAXO_API_URL: &str = "https://gateway.saxobank.com/openapi/";
 
-// TODO: pass in via tailscale ip command?
-static TAILSCALE_IP: &str = "100.84.252.9";
-
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub struct Config {
     pub saxo_client_id: String,
     pub saxo_client_secret: String,
-    // TODO: pass in via tailscale funnel command?
     pub saxo_redirect_uri: String,
     pub saxo_access_token_path: String,
 
@@ -70,6 +66,7 @@ struct AccountResponse {
 
 impl GetBalance for Saxo {
     async fn get(&self) -> Result<f32> {
+        let tailscale_ip = env::var("TAILSCALE_IP")?;
         let config_path = env::var("CONFIG_PATH")?;
 
         let config = config::Config::builder()
@@ -83,7 +80,8 @@ impl GetBalance for Saxo {
 
         let api = pushover::API::new();
 
-        let refreshed_access_token = get_refreshed_access_token(&config, &client, &api).await?;
+        let refreshed_access_token =
+            get_refreshed_access_token(&config, &client, &api, tailscale_ip).await?;
 
         let account_response = get_account_value(&client, &refreshed_access_token).await?;
 
@@ -95,8 +93,10 @@ async fn get_refreshed_access_token(
     config: &Config,
     client: &reqwest::Client,
     api: &pushover::API,
+    tailscale_ip: String,
 ) -> Result<AccessTokenResponse> {
-    let access_token = get_cached_or_live_access_token(&config, &client, &api).await?;
+    let access_token =
+        get_cached_or_live_access_token(&config, &client, &api, tailscale_ip).await?;
 
     let refreshed_access_token = refresh_access_token(&config, &client, &access_token).await?;
 
@@ -112,6 +112,7 @@ async fn get_cached_or_live_access_token(
     config: &Config,
     client: &reqwest::Client,
     api: &pushover::API,
+    tailscale_ip: String,
 ) -> Result<AccessTokenResponse> {
     let valid_refresh_token_o = std::fs::metadata(config.saxo_access_token_path.clone())
         .ok()
@@ -149,7 +150,7 @@ async fn get_cached_or_live_access_token(
 
             send_login_uri_push_notification(&config, &api, login_uri)?;
 
-            let auth_code = block_until_auth_code()?;
+            let auth_code = block_until_auth_code(tailscale_ip)?;
 
             let access_token = get_access_token(&config, &client, auth_code).await?;
 
@@ -199,10 +200,10 @@ async fn get_login_uri(config: &Config, client: &reqwest::Client) -> Result<Stri
     Ok(location)
 }
 
-fn block_until_auth_code() -> Result<String> {
+fn block_until_auth_code(tailscale_ip: String) -> Result<String> {
     info!("Waiting for auth code redirect");
 
-    let listener = TcpListener::bind(format!("{}:9999", TAILSCALE_IP))?;
+    let listener = TcpListener::bind(format!("{}:9999", tailscale_ip))?;
 
     let (mut stream, _) = listener.accept()?;
     let mut buffer = [0; 512];
@@ -212,7 +213,6 @@ fn block_until_auth_code() -> Result<String> {
     stream.flush()?;
 
     let mut headers = [httparse::EMPTY_HEADER; 20];
-    // TODO: use HTTPS
     let mut req = httparse::Request::new(&mut headers);
     req.parse(&buffer)?;
 
