@@ -96,7 +96,7 @@
               };
               serviceConfig = {
                 Type = "oneshot";
-                ExecStart = "${ynab-updater.packages.${system}.hl}/bin/hl";
+                ExecStart = "${self.packages.${system}.hl}/bin/hl";
               };
             };
 
@@ -117,7 +117,7 @@
               };
               serviceConfig = {
                 Type = "oneshot";
-                ExecStart = "${ynab-updater.packages.${system}.saxo}/bin/saxo";
+                ExecStart = "${self.packages.${system}.saxo}/bin/saxo";
               };
             };
           };
