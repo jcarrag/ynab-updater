@@ -142,6 +142,9 @@ where
     if balance == real_balance_milli {
         info!("Real & YNAB balances are equal");
         Ok(())
+    } else if last_transaction.transaction.date.day() == 1 {
+        info!("There's already a transaction for the 1st");
+        Ok(())
     } else if last_transaction.transaction.payee_id
         == config.ynab_reconciliation_payee_id
         // preserve the adjustment transaction on the 1st to create a record of the account's value over time
