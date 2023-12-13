@@ -142,7 +142,7 @@ where
     if balance == real_balance_milli {
         info!("Real & YNAB balances are equal");
         Ok(())
-    } else if last_transaction.transaction.date.day() == 1 {
+    } else if now.day() == 1 && last_transaction.transaction.date.day() == 1 {
         info!("There's already a transaction for the 1st");
         Ok(())
     } else if last_transaction.transaction.payee_id
