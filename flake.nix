@@ -33,9 +33,14 @@
 
         cargoLock.lockFile = ./Cargo.lock;
 
+        buildType = "debug";
+
         nativeBuildInputs = [ pkgs.pkg-config ];
 
-        buildInputs = [ pkgs.openssl ];
+        buildInputs = [
+          pkgs.openssl
+          pkgs.systemd
+        ];
       };
     in
     with pkgs; {
@@ -62,6 +67,7 @@
           rustup
           pkg-config
           openssl
+          systemd
         ];
       };
 
@@ -116,6 +122,12 @@
               };
               serviceConfig = {
                 Type = "oneshot";
+                # Necessary otherwise:
+                # > Mar 22 09:54:02 xps systemd[1841]: ynab-updater-saxo.service: Got notification message from PID 283457, but reception only permitted for main PID 283432
+                # https://github.com/systemd/systemd/issues/24516#issuecomment-1233032190
+                NotifyAccess = "all";
+                FileDescriptorStoreMax = 16;
+                FileDescriptorStorePreserve = "yes";
                 ExecStart = "${self.packages.${system}.saxo}/bin/saxo";
               };
             };
