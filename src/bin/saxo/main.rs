@@ -7,6 +7,7 @@ use pushover::requests::message::SendMessage;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
+use std::str::from_utf8;
 use std::{env, net::TcpListener};
 use ynab_updater::{
     update_ynab, GetBalance, GetYnabAccountConfig, YnabAccountConfig, CONFIG_FILENAME,
@@ -217,14 +218,24 @@ fn block_until_auth_code(config: &Config) -> Result<String> {
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
 
+    info!(
+        "buffer size: {:?}, str: {:?}, content: {:?}",
+        buffer.len(),
+        from_utf8(&buffer),
+        buffer.clone().to_ascii_uppercase()
+    );
+
     stream.write("HTTP/1.1 200 OK\r\nContent-Length: 7\r\n\r\nsuccess".as_bytes())?;
     stream.flush()?;
 
     let mut headers = [httparse::EMPTY_HEADER; 20];
     let mut req = httparse::Request::new(&mut headers);
+    info!("pres req content: {:?}", req);
     req.parse(&buffer)?;
+    info!("parsed req content: {:?}", req);
 
     let req = reqwest::Url::parse(format!("http://_{}", req.path.unwrap()).as_str())?;
+    info!("2 parsed req content: {:?}", req);
 
     let code = req
         .query_pairs()
@@ -232,6 +243,8 @@ fn block_until_auth_code(config: &Config) -> Result<String> {
         .expect("Unable to parse code from redirect_uri")
         .1
         .into_owned();
+
+    info!("2 req code: {:?}", code);
 
     Ok(code)
 }
