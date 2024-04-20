@@ -209,6 +209,10 @@ async fn get_login_uri(config: &Config, client: &reqwest::Client) -> Result<Stri
     Ok(location)
 }
 
+// Since the TCP listener is expecting HTTP it will fail to decode an HTTPS request.
+// Some browsers by default will attempt to upgrade the request from HTTP to HTTPS regardless so the OAuth callback fails.
+// - Brave (Desktop) was fixed by following [this thread's](https://community.brave.com/t/disable-forcing-https/525972/20) advice on how to disable this behaviour.
+// - Brave iOS seems unable to be configured to not do this, so on iOS Safari must be used instead.
 fn block_until_auth_code(config: &Config) -> Result<String> {
     info!("Waiting for auth code redirect");
 
