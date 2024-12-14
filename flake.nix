@@ -24,7 +24,7 @@
         rustc = rust;
       };
 
-      ynab-updater = rustPlatform.buildRustPackage {
+      ynab-updater_rust-env = rustPlatform.buildRustPackage {
         inherit pname;
 
         version = "0.0.1";
@@ -37,21 +37,32 @@
 
         buildInputs = [ pkgs.openssl ];
       };
+
+      authoriser = pkgs.buildGoModule {
+        pname = "authoriser";
+        version = "0.0.1";
+        src = ./.;
+        vendorHash = "sha256-ouLbaSrVKb2NeZ2Qqu2KrLmjNRQ2fcVb297cDFyY6xw=";
+      };
     in
     with pkgs; {
       packages.${system} = {
+        authoriser = writeShellScriptBin "authoriser" ''
+          YNAB_CONFIG_PATH=''${YNAB_CONFIG_PATH:-/home/james/dev/my/ynab_updater} \
+          ${authoriser}/bin/authoriser
+        '';
         hl = writeShellScriptBin "hl" ''
           RUST_LOG=info \
           RUST_BACKTRACE=1 \
           YNAB_CONFIG_PATH=''${YNAB_CONFIG_PATH:-/home/james/dev/my/ynab_updater} \
-          ${ynab-updater}/bin/hl
+          ${ynab-updater_rust-env}/bin/hl
         '';
         saxo = writeShellScriptBin "saxo" ''
-          RUST_LOG=info \
+          RUST_LOG=debug \
           RUST_BACKTRACE=1 \
           YNAB_TAILSCALE_IP=$(${pkgs.tailscale}/bin/tailscale ip --4) \
           YNAB_CONFIG_PATH=''${YNAB_CONFIG_PATH:-/home/james/dev/my/ynab_updater} \
-          ${ynab-updater}/bin/saxo
+          ${ynab-updater_rust-env}/bin/saxo
         '';
       };
 
