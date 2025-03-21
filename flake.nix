@@ -3,13 +3,15 @@
 
   inputs.rustOverlay.url = "github:oxalica/rust-overlay";
 
+  inputs.unstable.url = "github:NixOS/nixpkgs?ref=23e89b7da85c3640bbc2173fe04f4bd114342367";
+
   outputs = { self, unstable, rustOverlay }:
     let
       system = "x86_64-linux";
 
       pname = "ynab-updater";
 
-      pkgs = import unstable { inherit system; overlays = [ rustOverlay.overlay ]; };
+      pkgs = import unstable { inherit system; overlays = [ rustOverlay.overlays.default ]; };
 
       rust = pkgs.rust-bin.nightly.latest.default.override {
         extensions = [
@@ -91,8 +93,31 @@
           };
 
           config = mkIf cfg.enable {
+            systemd.user.services."ynab-updater-authoriser" = {
+              wantedBy = [ "default.target" ];
+              environment = {
+                YNAB_CONFIG_PATH = cfg.configDir;
+              };
+              serviceConfig = {
+                Type = "oneshot";
+                ExecStart = "${self.packages.${system}.authoriser}/bin/authoriser";
+              };
+            };
+            # TODO: start timers by activating this socket
+            systemd.user.sockets."ynab-updater-activate" = {
+              # wants = [
+              #   "ynab-updater-hl.timer"
+              #   "ynab-updater-saxo.timer"
+              # ];
+              listenStreams = [ "/tmp/ynab-updater_authoriser.sock" ];
+              socketConfig = {
+                # FIXME: this doesn't work as it's limited to one service. so then I need one socket per timer?
+                Service = ["ynab-updater-hl.timer"];
+              };
+            };
+
             systemd.user.timers."ynab-updater-hl" = {
-              wantedBy = [ "timers.target" ];
+              wantedBy = [ "ynab-updater-activate.socket" ];
               timerConfig = {
                 OnBootSec = "10s";
                 OnUnitActiveSec = "24h";
@@ -111,7 +136,7 @@
             };
 
             systemd.user.timers."ynab-updater-saxo" = {
-              wantedBy = [ "timers.target" ];
+              wantedBy = [ "ynab-updater-activate.socket" ];
               timerConfig = {
                 OnBootSec = "10s";
                 # 55m since the refresh_token duration is 1h
