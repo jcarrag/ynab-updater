@@ -1,4 +1,4 @@
-#![feature(async_fn_in_trait, iterator_try_collect)]
+#![feature(iterator_try_collect)]
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
@@ -102,12 +102,12 @@ async fn get_refreshed_access_token(
     client: &reqwest::Client,
     api: &pushover::API,
 ) -> Result<AccessTokenResponse> {
-    let access_token = get_cached_or_live_access_token(&config, &client, &api).await?;
+    let access_token = get_cached_or_live_access_token(config, client, api).await?;
 
-    let refreshed_access_token = refresh_access_token(&config, &client, &access_token).await?;
+    let refreshed_access_token = refresh_access_token(config, client, &access_token).await?;
 
     std::fs::write(
-        get_access_token_path(&config),
+        get_access_token_path(config),
         serde_json::to_string(&refreshed_access_token)?,
     )?;
 
@@ -123,14 +123,14 @@ async fn get_cached_or_live_access_token(
     client: &reqwest::Client,
     api: &pushover::API,
 ) -> Result<AccessTokenResponse> {
-    let access_token_path = get_access_token_path(&config);
+    let access_token_path = get_access_token_path(config);
 
     let valid_refresh_token_o = std::fs::metadata(access_token_path.clone())
         .ok()
         .and_then(|stat| stat.modified().ok())
         .and_then(|modified| {
             let access_token_file = std::fs::read(access_token_path.clone())
-                .expect(format!("Unable to read {}", access_token_path).as_str());
+                .unwrap_or_else(|_| panic!("Unable to read {}", access_token_path));
 
             let access_token = serde_json::from_slice::<AccessTokenResponse>(&access_token_file)
                 .expect("Unable to parse access_token_file");
@@ -139,13 +139,14 @@ async fn get_cached_or_live_access_token(
 
             let expires_in = Duration::seconds(access_token.refresh_token_expires_in as i64);
 
-            let expires_at = modified_at.checked_add_signed(expires_in).expect(
-                format!(
-                    "Unable to add expires_in '{}' to modified_at '{}'",
-                    expires_in, modified_at
-                )
-                .as_str(),
-            );
+            let expires_at = modified_at
+                .checked_add_signed(expires_in)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Unable to add expires_in '{}' to modified_at '{}'",
+                        expires_in, modified_at
+                    )
+                });
 
             if Utc::now() > expires_at {
                 None
@@ -157,13 +158,13 @@ async fn get_cached_or_live_access_token(
     match valid_refresh_token_o {
         Some(valid_refresh_token) => Ok(valid_refresh_token),
         _ => {
-            let login_uri = get_login_uri(&config, &client).await?;
+            let login_uri = get_login_uri(config, client).await?;
 
-            send_login_uri_push_notification(&config, &api, login_uri)?;
+            send_login_uri_push_notification(config, api, login_uri)?;
 
-            let auth_code = block_until_auth_code(&config)?;
+            let auth_code = block_until_auth_code(config)?;
 
-            let access_token = get_access_token(&config, &client, auth_code).await?;
+            let access_token = get_access_token(config, client, auth_code).await?;
 
             std::fs::write(access_token_path, serde_json::to_string(&access_token)?)?;
 
@@ -220,7 +221,7 @@ fn block_until_auth_code(config: &Config) -> Result<String> {
 
     let (mut stream, _) = listener.accept()?;
     let mut buffer = [0; 512];
-    stream.read(&mut buffer).unwrap();
+    stream.read_exact(&mut buffer).unwrap();
 
     info!(
         "buffer size: {:?}, str: {:?}, content: {:?}",
@@ -229,7 +230,7 @@ fn block_until_auth_code(config: &Config) -> Result<String> {
         buffer.clone().to_ascii_uppercase()
     );
 
-    stream.write("HTTP/1.1 200 OK\r\nContent-Length: 7\r\n\r\nsuccess".as_bytes())?;
+    stream.write_all("HTTP/1.1 200 OK\r\nContent-Length: 7\r\n\r\nsuccess".as_bytes())?;
     stream.flush()?;
 
     let mut headers = [httparse::EMPTY_HEADER; 20];

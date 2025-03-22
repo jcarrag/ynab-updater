@@ -1,5 +1,3 @@
-#![feature(async_fn_in_trait)]
-
 use anyhow::Result;
 use chrono::prelude::*;
 use log::info;

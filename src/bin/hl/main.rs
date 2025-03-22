@@ -1,4 +1,4 @@
-#![feature(async_fn_in_trait, iterator_try_collect)]
+#![feature(iterator_try_collect)]
 
 use anyhow::Result;
 use regex::Regex;
@@ -230,7 +230,7 @@ async fn get_total(home_page: String) -> Result<f32> {
             .ok_or("Failed to get match from regex")
             .unwrap()
             .as_str()
-            .replace(",", "");
+            .replace(',', "");
 
         Ok(captures.parse::<f32>()?)
     }).sum::<Result<f32, _>>();
